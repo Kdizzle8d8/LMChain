@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
 	"os"
-	"strings"
 
-	"LMChain/chat"
-
+	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -23,34 +21,56 @@ func main() {
 	if prompt != nil {
 		messages = append(messages, prompt)
 	}
-
-	if len(os.Args) > 1 {
-		if os.Args[1] == "ask" {
-			messages = append(messages, openai.UserMessage(strings.Join(os.Args[2:], " ")))
-			chat.SendMessage(client, chat.Tools, messages)
-		} else if os.Args[1] == "chat" {
-			fmt.Println("Entering chat mode. Type 'exit' to quit.")
-			chatLoop(client, messages)
-		} else {
-			fmt.Println("Invalid command")
-		}
-	}
-	// Print the number of messages in the conversation
-
-	// Optionally, you can do more with the messages array here
-	// For example, you could print the role of the last message:
 }
 
-func chatLoop(client *openai.Client, messages []openai.ChatCompletionMessageParamUnion) {
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Print("\033[34m\n[You] > \033[0m")
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-		if input == "exit" {
-			break
-		}
-		messages = append(messages, openai.UserMessage(input))
-		chat.SendMessage(client, chat.Tools, messages)
+type model struct {
+	viewport viewport.Model
+	messages []openai.ChatCompletionMessageParamUnion
+	textarea textarea.Model
+	err      error
+}
+
+// View implements tea.Model.
+
+func initialModel() model {
+	ti := textarea.New()
+	ti.Placeholder = "Message the assistant..."
+	ti.Focus()
+
+	ti.SetWidth(40)
+	ti.SetHeight(7)
+
+	vp := viewport.New(40, 12)
+	vp.SetContent("Send a message")
+
+	return model{
+		textarea: ti,
+		viewport: vp,
+		messages: []openai.ChatCompletionMessageParamUnion{},
+		err:      nil,
 	}
+}
+
+func (m model) Init() tea.Cmd {
+	return textarea.Blink
+}
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			return m, tea.Quit
+		case "enter":
+			return m, processInput
+		case "shift+enter":
+			return m, processInput
+		}
+	}
+
+	return m, nil
+}
+
+func (m model) View() string {
+	return ""
 }
