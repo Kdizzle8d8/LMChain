@@ -1,71 +1,63 @@
 package chat
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"os"
+	"log"
+
+	"github.com/openai/openai-go"
 )
 
-func SendMessage(message, filePath, model string) (string, error) {
-	prompt := fmt.Sprintf("User Prompt: %s", message)
-	if filePath != "" {
-		content, err := os.ReadFile(filePath)
+func SendMessage(client *openai.Client, tools []openai.ChatCompletionToolParam, messages []openai.ChatCompletionMessageParamUnion) {
+	stream := client.Chat.Completions.NewStreaming(context.TODO(), openai.ChatCompletionNewParams{
+		Model:    openai.F(openai.ChatModelGPT4o),
+		Tools:    openai.F(tools),
+		Messages: openai.F(messages),
+	})
+	acc := openai.ChatCompletionAccumulator{}
+	for stream.Next() {
+		chunk := stream.Current()
+		acc.AddChunk(chunk)
+		if tool, ok := acc.JustFinishedToolCall(); ok {
+			fmt.Println("Finished tool call:", tool.Name, "With arguments:", tool.Arguments)
+		}
+		if len(chunk.Choices) > 0 {
+			fmt.Print(chunk.Choices[0].Delta.Content)
+		}
+	}
+	if err := stream.Err(); err != nil {
+		log.Printf("Error in stream: %v", err)
+		return
+	}
+	if len(acc.Choices) == 0 {
+		log.Println("No choices returned from the API")
+		return
+	}
+
+	// Add the assistant's message to the conversation
+	messages = append(messages, acc.Choices[0].Message)
+
+	// Handle all tool calls before sending the next message
+	for _, toolCall := range acc.Choices[0].Message.ToolCalls {
+		function, ok := ToolMap[toolCall.Function.Name]
+		if !ok {
+			log.Printf("Error: Unknown tool call %s", toolCall.Function.Name)
+			continue
+		}
+		var args map[string]interface{}
+		err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
 		if err != nil {
-			return "", fmt.Errorf("reading file: %w", err)
+			log.Printf("Error unmarshalling arguments: %v", err)
+			continue
 		}
-		prompt += fmt.Sprintf("\nAttachments: Count: 1 File Path: %s Content: %s", filePath, content)
+		res := function(args)
+		// Add the tool response to the conversation
+		messages = append(messages, openai.ToolMessage(toolCall.ID, res))
 	}
 
-	req := OllamaReq{
-		Model: model,
-		Messages: []Message{
-			{Role: "user", Content: prompt},
-		},
-		Stream: true,
+	// Only send a new message if there were tool calls
+	if len(acc.Choices[0].Message.ToolCalls) > 0 {
+		SendMessage(client, tools, messages)
 	}
-
-	return SendOllamaRequest(req)
-}
-
-func SendOllamaRequest(req OllamaReq) (string, error) {
-	reqBody, err := json.Marshal(req)
-	if err != nil {
-		return "", fmt.Errorf("marshaling request: %w", err)
-	}
-
-	resp, err := http.Post(os.Getenv("OLLAMA_URL")+"/api/chat", "application/json", bytes.NewBuffer(reqBody))
-	if err != nil {
-		return "", fmt.Errorf("sending request: %w", err)
-	}
-	defer resp.Body.Close()
-	return HandleResponseStream(resp.Body)
-}
-
-func HandleResponseStream(body io.ReadCloser) (string, error) {
-	defer body.Close()
-
-	decoder := json.NewDecoder(body)
-	fullResponse := ""
-
-	for {
-		var streamResponse OllamaStreamResponse
-
-		if err := decoder.Decode(&streamResponse); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fullResponse, fmt.Errorf("decoding stream: %w", err)
-		}
-
-		fmt.Print(streamResponse.Message.Content)
-		fullResponse += streamResponse.Message.Content
-
-		if streamResponse.Done {
-			break
-		}
-	}
-	return fullResponse, nil
 }

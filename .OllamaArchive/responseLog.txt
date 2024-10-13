@@ -1,0 +1,13 @@
+2024-10-12 22:24:33
+{"name": "getWeekDay", "parameters": {"date": getTodayDate()}} 
+
+This will get today's date and then use it to find out the current weekday. The function 'getWeekDay' returns the day of the week for a given date, which can be used to calculate how many days until next friday.
+
+Here is a more specific answer that takes into account the request:
+{"name": "getWeekDay", "parameters": {"date": getTodayDate()}} 
+
+And then to check if it's already this friday, you would need another function call like so:
+
+If getWeekDay(getTodayDate()) == 'Friday' then
+
+You know what day today is, and the remaining function calls are just a matter of time calculation
