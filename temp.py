@@ -1,14 +1,12 @@
 from datetime import datetime, timedelta
 
-# Get the current datetime
-now = datetime.now()
+# Get today's date
+today = datetime.now()
 
-# Calculate the number of days until the next Wednesday
-days_until_wednesday = (2 - now.weekday() + 7) % 7
+# Find the next Thursday
+next_thursday = today + timedelta((3 - today.weekday()) % 7)
 
-# If today is Wednesday, the next Wednesday is in 7 days
-if days_until_wednesday == 0:
-    days_until_wednesday = 7
+# Calculate the difference in days
+days_until_thursday = (next_thursday - today).days
 
-# Print the result
-print(days_until_wednesday)
+print(days_until_thursday)

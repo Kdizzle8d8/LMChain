@@ -18,16 +18,19 @@ func main() {
 	client := openai.NewClient(
 		option.WithAPIKey(os.Getenv("OPENAI_API_KEY")), // defaults to os.LookupEnv("OPENAI_API_KEY")
 	)
+	prompt := openai.SystemMessage("You are a helpful assistant. Your training data is not realtime, so you've been equiped with function calls in order to gain access to the most up to date and accurate info. When executing python code, add a print statement using the print() function or there will be no output.")
+	messages := []openai.ChatCompletionMessageParamUnion{}
+	if prompt != nil {
+		messages = append(messages, prompt)
+	}
 
 	if len(os.Args) > 1 {
 		if os.Args[1] == "ask" {
-			messages := []openai.ChatCompletionMessageParamUnion{
-				openai.UserMessage(strings.Join(os.Args[2:], " ")),
-			}
+			messages = append(messages, openai.UserMessage(strings.Join(os.Args[2:], " ")))
 			chat.SendMessage(client, chat.Tools, messages)
 		} else if os.Args[1] == "chat" {
 			fmt.Println("Entering chat mode. Type 'exit' to quit.")
-			chatLoop(client, []openai.ChatCompletionMessageParamUnion{})
+			chatLoop(client, messages)
 		} else {
 			fmt.Println("Invalid command")
 		}

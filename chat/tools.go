@@ -36,11 +36,11 @@ var Tools = []openai.ChatCompletionToolParam{
 			Description: openai.String("Execute arbitrary python code"),
 			Parameters: openai.F(openai.FunctionParameters{
 				"type":        "object",
-				"description": "Execute arbitrary python code. Use this primarily for math calculations. ",
+				"description": "Execute arbitrary python code. Use this primarily for math calculations. To ensure output add a print statement always use the print function.",
 				"properties": map[string]interface{}{
 					"code": map[string]interface{}{
 						"type":        "string",
-						"description": "The python code to execute as a string. add a print statement to ensure output.",
+						"description": "The python code to execute as a string. ",
 					},
 				},
 				"required":             []string{"code"},
@@ -101,42 +101,55 @@ func executeArbitraryPython(args map[string]interface{}) string {
 		return "Error: Invalid input. code must be a string."
 	}
 
-	fmt.Println("\033[33m┌" + strings.Repeat("─", 78) + "┐\033[0m")
-	fmt.Println("\033[33m│ Executing python code:" + strings.Repeat(" ", 55) + "│\033[0m")
-	fmt.Println("\033[33m└" + strings.Repeat("─", 78) + "┘\033[0m")
-
 	// Execute the Python code
 	os.WriteFile("temp.py", []byte(code), 0644)
-	out, err := exec.Command("python", "temp.py").Output()
-	if err != nil {
-		return fmt.Sprintf("Error: %s", err)
-	}
+	cmd := exec.Command("python", "temp.py")
+	out, err := cmd.CombinedOutput()
 
-	// Split the code into lines
-	lines := strings.Split(code, "\n")
-
-	// Add the output as a comment to the last line
-	if len(lines) > 0 {
-		output := strings.TrimSpace(string(out))
-		lines[len(lines)-1] += " # Output: " + output
-	}
-
+	// Display the code
 	fmt.Println("\033[33m┌" + strings.Repeat("─", 78) + "┐\033[0m")
+	lines := strings.Split(code, "\n")
 	for _, line := range lines {
-		// Pad or truncate each line to fit within 76 characters (78 - 2 for borders)
-		paddedLine := line
-		if len(line) > 76 {
-			paddedLine = line[:73] + "..."
-		} else {
-			paddedLine = line + strings.Repeat(" ", 76-len(line))
-		}
+		paddedLine := padOrTruncate(line, 76)
 		fmt.Print("\033[33m│\033[0m ")
 		quick.Highlight(os.Stdout, paddedLine, "python", "terminal256", "dracula")
 		fmt.Println(" \033[33m│\033[0m")
 	}
 	fmt.Println("\033[33m└" + strings.Repeat("─", 78) + "┘\033[0m")
 
-	return string(out)
+	// Display the output or error in a separate box
+	output := strings.TrimSpace(string(out))
+	var outputLines []string
+	var boxTitle string
+
+	if err != nil {
+		boxTitle = "Python Error:"
+		errorMsg := err.Error()
+		outputLines = append(strings.Split(output, "\n"), "Error: "+errorMsg)
+	} else {
+		boxTitle = "Python Output:"
+		outputLines = strings.Split(output, "\n")
+	}
+
+	fmt.Println("\033[33m┌" + strings.Repeat("─", 78) + "┐\033[0m")
+	fmt.Println("\033[33m│ " + boxTitle + strings.Repeat(" ", 77-len(boxTitle)) + "│\033[0m")
+	fmt.Println("\033[33m├" + strings.Repeat("─", 78) + "┤\033[0m")
+
+	if len(outputLines) == 1 && outputLines[0] == "" {
+		fmt.Print("\033[33m│\033[0m ")
+		fmt.Print(padOrTruncate("(No output)", 76))
+		fmt.Println(" \033[33m│\033[0m")
+	} else {
+		for _, line := range outputLines {
+			fmt.Print("\033[33m│\033[0m ")
+			fmt.Print(padOrTruncate(line, 76))
+			fmt.Println(" \033[33m│\033[0m")
+		}
+	}
+
+	fmt.Println("\033[33m└" + strings.Repeat("─", 78) + "┘\033[0m")
+
+	return output
 }
 
 func executeArbitraryCommand(args map[string]interface{}) string {
@@ -148,9 +161,6 @@ func executeArbitraryCommand(args map[string]interface{}) string {
 		return "Error: This command is not allowed. use trash instead."
 	}
 
-	fmt.Println("\033[33m┌" + strings.Repeat("─", 78) + "┐\033[0m")
-	fmt.Println("\033[33m│ Executing command:" + strings.Repeat(" ", 59) + "│\033[0m")
-	fmt.Println("\033[33m└" + strings.Repeat("─", 78) + "┘\033[0m")
 
 	// Execute the command
 	out, err := exec.Command("bash", "-c", command).Output()
