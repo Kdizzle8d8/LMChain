@@ -6,8 +6,7 @@
       "type": "go",
       "request": "launch",
       "mode": "auto",
-      "program": "${workspaceFolder}/main.go",
-      "args": ["What is my favorite color? answer in 1 word", "test.text"],
+      "program": "${workspaceFolder}/tea/main.go",
       "env": {},
       "cwd": "${workspaceFolder}",
       "stopOnEntry": false

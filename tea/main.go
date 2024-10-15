@@ -1,15 +1,24 @@
 package main
 
 import (
-    tea "github.com/charmbracelet/bubbletea"
+	"os"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/joho/godotenv"
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/option"
 )
 
 func main() {
-    p := tea.NewProgram(
-        newSimplePage("This app is under construction"),
-    )
-    if err := p.Start(); err != nil {
-        panic(err)
-    }
+	godotenv.Load()
+	client := openai.NewClient(
+		option.WithAPIKey(os.Getenv("OPENAI_API_KEY")), // defaults to os.LookupEnv("OPENAI_API_KEY")
+	)
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage("You are a helpful assistant."),
+	}
+	p := tea.NewProgram(chatModel(client, messages), tea.WithAltScreen(), tea.WithMouseCellMotion())
+	if _, err := p.Run(); err != nil {
+		panic(err)
+	}
 }
-
