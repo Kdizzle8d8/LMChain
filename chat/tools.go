@@ -103,7 +103,7 @@ func executeArbitraryPython(args map[string]interface{}) string {
 
 	// Execute the Python code
 	os.WriteFile("temp.py", []byte(code), 0644)
-	cmd := exec.Command("python", "temp.py")
+	cmd := exec.Command("python3", "temp.py")
 	out, err := cmd.CombinedOutput()
 
 	// Display the code

@@ -27,14 +27,17 @@ type model struct {
 	height             int
 }
 
+const (
+	tiHeight = 5
+)
+
 func chatModel(client *openai.Client, messages []openai.ChatCompletionMessageParamUnion) model {
 	ti := textarea.New()
 	ti.Placeholder = "Type your message here..."
 	ti.Focus()
 
-	ti.SetWidth(80) // Set a default width
-	ti.SetHeight(3) // Set height to 3 lines
-
+	ti.SetWidth(80)            // Set a default width
+	ti.SetHeight(tiHeight)     // Set height to 3 lines
 	vp := viewport.New(80, 20) // Adjust viewport width to account for borders
 	vpContent := []string{}
 	vpContent = updateMessages(messages, vpContent, 80)
@@ -48,8 +51,8 @@ func chatModel(client *openai.Client, messages []openai.ChatCompletionMessagePar
 		client:             client,
 		err:                nil,
 		waitingForResponse: false,
-		width:              80, // Default width
-		height:             24, // Default height
+		width:              80,
+		height:             24,
 	}
 }
 
@@ -84,16 +87,43 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+var margin = 3
+
 func (m model) View() string {
+	viewportWidth := m.width - (margin*2 + 2)
+	textareaWidth := m.width - (margin*2 + 2)
+
+	// Create a bordered title
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("86")).
+		Foreground(lipgloss.Color("86")).Bold(true).
+		Render(" BubbleChat ")
+
+	// Create the viewport with a title
+	viewport := lipgloss.NewStyle().
+		Width(viewportWidth).
+		MarginLeft(margin).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("86")).
+		Render(lipgloss.PlaceHorizontal(viewportWidth, lipgloss.Center, title) + m.viewport.View())
+
 	return lipgloss.JoinVertical(lipgloss.Left,
-		m.viewport.View(),
+		viewport,
 		lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("86")).
-			Width(m.width).
+			Width(textareaWidth).
+			Align(lipgloss.Left).
+			Margin(1, margin).
 			Padding(0, 1).
 			Render(m.textarea.View()),
-		helpStyle("↑/↓: scroll • tab: switch focus • ctrl+c: quit"),
+		lipgloss.NewStyle().
+			Width(viewportWidth).
+			Height(1).
+			Margin(0, margin).
+			Render(helpStyle("↑/↓: scroll • tab: switch focus • ctrl+c: quit")),
 	)
 }
 
@@ -204,11 +234,12 @@ func (m model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC, tea.KeyEsc:
 		return m, tea.Quit
-	case tea.KeyEnter:
+	case tea.KeyCtrlS:
 		if m.textarea.Focused() && !m.waitingForResponse {
 			userInput := m.textarea.Value()
 			m.messages = append(m.messages, openai.UserMessage(userInput))
 			m.viewport.GotoBottom()
+			m.viewport.SetContent("\n" + strings.Join(updateMessages(m.messages, []string{}, m.width), "\n"))
 			m.textarea.Reset()
 			m.textarea.Blur()
 			m.waitingForResponse = true
@@ -240,17 +271,17 @@ func (m model) handleWindowSizeMsg(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.width = msg.Width
 	m.height = msg.Height
 
-	textareaHeight := 3 // Fixed height for the textarea
-	helpTextHeight := 1 // Height for the help text
-	borderHeight := 2   // Account for top and bottom borders of the textarea
+	textareaHeight := tiHeight // Fixed height for the textarea
+	helpTextHeight := 1        // Height for the help text
+	borderHeight := 2          // Account for top and bottom borders of the textarea
 
 	// Calculate the available height for the viewport
-	viewportHeight := m.height - textareaHeight - helpTextHeight - borderHeight
+	viewportHeight := m.height - textareaHeight - helpTextHeight - borderHeight - 4 - 2
 
 	m.viewport.Width = m.width
 	m.viewport.Height = viewportHeight
 
-	m.textarea.SetWidth(m.width - 4) // Account for left and right borders
+	m.textarea.SetWidth(m.width - 10) // Account for left and right borders
 
 	// Rerender the content to fit the new width
 	viewPortMessages := updateMessages(m.messages, []string{}, m.width)
